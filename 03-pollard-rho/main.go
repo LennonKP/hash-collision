@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"flag"
 	"fmt"
+	"github.com/lennonkp/hash-collision/pkg/hashutils"
 	"runtime"
 	"sync"
 	"sync/atomic"
@@ -36,18 +37,14 @@ func main() {
 	var totalAttempts int64
 
 	distMap := make(map[uint64]DistPoint)
-	var mu sync.Mutex
+	var mapMutex sync.Mutex
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
 	bytesLen := bits / 8
-	mask := uint64((1 << bits) - 1)
-	if bits == 64 {
-		mask = ^uint64(0)
-	}
+	mask := hashutils.CreateMask(bits)
 
-	distMask := uint64((1 << k) - 1)
 
 	for i := 0; i < workers; i++ {
 		go func() {
@@ -70,17 +67,14 @@ func main() {
 						// 2. Função iterativa: x_{i+1} = Hash(x_i)
 						var currentBuf [8]byte
 						binary.LittleEndian.PutUint64(currentBuf[:], currentSeed)
-						h := sha256.Sum256(currentBuf[:])
+						fullHash := sha256.Sum256(currentBuf[:])
 						
-						var hashUint uint64
-						for j := 0; j < bytesLen; j++ {
-							hashUint = (hashUint << 8) | uint64(h[j])
-						}
-						miniHash := hashUint & mask
+						hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
+						miniHash := hashutils.ApplyMask(hashUint, mask)
 
 						// 3. Verificar se caiu num ponto distinguido
-						if (miniHash & distMask) == 0 {
-							mu.Lock()
+						if hashutils.IsDistinguished(miniHash, k) {
+							mapMutex.Lock()
 							if prev, exists := distMap[miniHash]; exists {
 								if prev.StartSeed != startSeed {
 									// POSSÍVEL COLISÃO ENCONTRADA!
@@ -102,14 +96,14 @@ func main() {
 										fmt.Printf("Pontos Distinguidos Salvos: %d\n", len(distMap))
 										fmt.Println("========================================")
 										cancel()
-										mu.Unlock()
+										mapMutex.Unlock()
 										return
 									}
 								}
 							} else {
 								distMap[miniHash] = DistPoint{StartSeed: startSeed, Steps: steps}
 							}
-							mu.Unlock()
+							mapMutex.Unlock()
 							break // Inicia nova trilha após ponto distinguido
 						}
 						
@@ -163,20 +157,14 @@ func findCollisionInChains(seed1, seed2 uint64, steps1, steps2 int, bytesLen int
 func step(seed uint64, bytesLen int, mask uint64) uint64 {
 	var buf [8]byte
 	binary.LittleEndian.PutUint64(buf[:], seed)
-	h := sha256.Sum256(buf[:])
-	var hashUint uint64
-	for i := 0; i < bytesLen; i++ {
-		hashUint = (hashUint << 8) | uint64(h[i])
-	}
-	return hashUint & mask
+	fullHash := sha256.Sum256(buf[:])
+	hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
+	return hashutils.ApplyMask(hashUint, mask)
 }
 
 func computeHashStr(seedHex string, bytesLen int, mask uint64) string {
-	b, _ := hex.DecodeString(seedHex)
-	h := sha256.Sum256(b)
-	var hashUint uint64
-	for i := 0; i < bytesLen; i++ {
-		hashUint = (hashUint << 8) | uint64(h[i])
-	}
-	return fmt.Sprintf("%0*x", bytesLen*2, hashUint&mask)
+	decodedSeed, _ := hex.DecodeString(seedHex)
+	fullHash := sha256.Sum256(decodedSeed)
+	hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
+	return fmt.Sprintf("%0*x", bytesLen*2, hashutils.ApplyMask(hashUint, mask))
 }

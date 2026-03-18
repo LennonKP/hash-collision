@@ -28,10 +28,7 @@ func main() {
 
 func findCollision(bits int) hashutils.Result {
 	bytesLen := bits / 8
-	mask := uint64((1 << bits) - 1)
-	if bits == 64 {
-		mask = ^uint64(0)
-	}
+	mask := hashutils.CreateMask(bits)
 
 	hashes := make(map[uint64]string)
 
@@ -42,16 +39,13 @@ func findCollision(bits int) hashutils.Result {
 
 	for {
 		attempts++
-		
+
 		rand.Read(buf)
 		inputStr := hex.EncodeToString(buf)
 
-		h := sha256.Sum256([]byte(inputStr))
-		var hashUint uint64
-		for i := 0; i < bytesLen; i++ {
-			hashUint = (hashUint << 8) | uint64(h[i])
-		}
-		miniHash := hashUint & mask
+		fullHash := sha256.Sum256([]byte(inputStr))
+		hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
+		miniHash := hashutils.ApplyMask(hashUint, mask)
 
 		if originalStr, exists := hashes[miniHash]; exists {
 			if originalStr != inputStr {

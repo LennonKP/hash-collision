@@ -42,10 +42,7 @@ func main() {
 // findCollisionSharded utiliza sementes uint64 para economizar ~70%% de RAM em cada entrada
 func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 	bytesLen := bits / 8
-	mask := uint64((1 << bits) - 1)
-	if bits == 64 {
-		mask = ^uint64(0)
-	}
+	mask := hashutils.CreateMask(bits)
 
 	shards := make([]*shard, numShards)
 	for i := 0; i < numShards; i++ {
@@ -79,26 +76,23 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 					currentSeed := binary.LittleEndian.Uint64(seedBuf[:])
 
 					// 2. Calcular SHA-256 da semente
-					h := sha256.Sum256(seedBuf[:])
+					fullHash := sha256.Sum256(seedBuf[:])
 					
-					var hashUint uint64
-					for j := 0; j < bytesLen; j++ {
-						hashUint = (hashUint << 8) | uint64(h[j])
-					}
-					miniHash := hashUint & mask
+					hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
+					miniHash := hashutils.ApplyMask(hashUint, mask)
 
 					// 3. Verificar colisão no shard correto
-					shardIdx := int(h[0]) % numShards
-					s := shards[shardIdx]
+					shardIdx := int(fullHash[0]) % numShards
+					selectedShard := shards[shardIdx]
 
-					s.Lock()
-					if originalSeed, exists := s.m[miniHash]; exists {
+					selectedShard.Lock()
+					if originalSeed, exists := selectedShard.m[miniHash]; exists {
 						if originalSeed != currentSeed {
 							cancel() 
 
 							// Prepara as strings originais para exibicao
-							var b1 [8]byte
-							binary.LittleEndian.PutUint64(b1[:], originalSeed)
+							var seed1Buf [8]byte
+							binary.LittleEndian.PutUint64(seed1Buf[:], originalSeed)
 							
 							resultChan <- hashutils.Result{
 								Bits:          bits,
@@ -106,17 +100,17 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 								Duration:      time.Since(startTime),
 								InitialMemory: initialMem,
 								FinalMemory:   hashutils.GetAllocatedMemory(),
-								String1:       fmt.Sprintf("%x", b1),
+								String1:       fmt.Sprintf("%x", seed1Buf),
 								String2:       fmt.Sprintf("%x", seedBuf),
 								MiniHash:      miniHash,
 							}
-							s.Unlock()
+							selectedShard.Unlock()
 							return
 						}
 					} else {
-						s.m[miniHash] = currentSeed
+						selectedShard.m[miniHash] = currentSeed
 					}
-					s.Unlock()
+					selectedShard.Unlock()
 				}
 			}
 		}()
