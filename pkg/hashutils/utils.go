@@ -30,10 +30,10 @@ func GetAllocatedMemory() uint64 {
 	return memStats.Alloc
 }
 
-func PrintResults(result Result, title string) {
+func PrintResults(result Result) {
 	bytesLen := result.Bits / 8
 	fmt.Println("========================================")
-	fmt.Printf("💥 Colisão Encontrada (%s)!\n", title)
+	fmt.Printf("Colisão Encontrada\n")
 	fmt.Printf("Mini-Hash (Hex): %0*x\n", bytesLen*2, result.MiniHash)
 	fmt.Printf("String 1: %s\n", result.String1)
 	fmt.Printf("String 2: %s\n", result.String2)

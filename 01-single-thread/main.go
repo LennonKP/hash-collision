@@ -20,10 +20,10 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Iniciando busca por colisão (Single-Thread) para %d bits...\n", bits)
+	fmt.Printf("iniciando busca por colisao single threaded...\n")
 
 	result := findCollision(bits)
-	hashutils.PrintResults(result, "Single-Thread")
+	hashutils.PrintResults(result)
 }
 
 func findCollision(bits int) hashutils.Result {

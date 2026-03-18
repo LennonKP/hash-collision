@@ -29,9 +29,7 @@ func main() {
 	flag.IntVar(&k, "k", 16, "Dificuldade do Ponto Distinguido (bits em zero no início)")
 	flag.Parse()
 
-	fmt.Printf("Iniciando Parallel Collision Search (PCS) para %d bits...\n", bits)
-	fmt.Printf("Configuração: %d workers, Pontos Distinguidos: primeiros %d bits em zero\n", workers, k)
-	fmt.Println("Vantagem: Memória quase zero (apenas pontos distinguidos são salvos)")
+	fmt.Printf("iniciando busca por colisao com Pollard Rho...\n")
 
 	startTime := time.Now()
 	var totalAttempts int64
@@ -45,7 +43,6 @@ func main() {
 	bytesLen := bits / 8
 	mask := hashutils.CreateMask(bits)
 
-
 	for i := 0; i < workers; i++ {
 		go func() {
 			var seedBuf [8]byte
@@ -58,7 +55,7 @@ func main() {
 					rand.Read(seedBuf[:])
 					startSeed := binary.LittleEndian.Uint64(seedBuf[:])
 					currentSeed := startSeed
-					
+
 					steps := 0
 					for {
 						steps++
@@ -68,7 +65,7 @@ func main() {
 						var currentBuf [8]byte
 						binary.LittleEndian.PutUint64(currentBuf[:], currentSeed)
 						fullHash := sha256.Sum256(currentBuf[:])
-						
+
 						hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
 						miniHash := hashutils.ApplyMask(hashUint, mask)
 
@@ -83,13 +80,13 @@ func main() {
 									if ok {
 										duration := time.Since(startTime)
 										fmt.Println("\n========================================")
-										fmt.Println("💥 COLISÃO ENCONTRADA (Pollard's Rho / PCS)!")
+										fmt.Println("Colisão Encontrada")
 										fmt.Printf("Trilha 1 (Início): %016x\n", prev.StartSeed)
 										fmt.Printf("Trilha 2 (Início): %016x\n", startSeed)
 										fmt.Println("----------------------------------------")
 										fmt.Printf("String 1: %s\n", s1)
 										fmt.Printf("String 2: %s\n", s2)
-										fmt.Printf("Ambas resultam no Hash: %s\n", computeHashStr(s1, bytesLen, mask))
+										fmt.Printf("Hash resultante: %s\n", computeHashStr(s1, bytesLen, mask))
 										fmt.Println("----------------------------------------")
 										fmt.Printf("Tentativas totais: %d\n", atomic.LoadInt64(&totalAttempts))
 										fmt.Printf("Tempo: %v\n", duration)
@@ -106,9 +103,9 @@ func main() {
 							mapMutex.Unlock()
 							break // Inicia nova trilha após ponto distinguido
 						}
-						
+
 						currentSeed = miniHash // Próximo passo da corrente
-						
+
 						// Proteção contra trilhas infinitas (raro mas possível)
 						if steps > 10000000 {
 							break
@@ -127,7 +124,7 @@ func findCollisionInChains(seed1, seed2 uint64, steps1, steps2 int, bytesLen int
 	// 1. Alinhar as trilhas (avançar a mais longa até ficarem com mesmo tamanho restante)
 	curr1 := seed1
 	curr2 := seed2
-	
+
 	if steps1 > steps2 {
 		for i := 0; i < steps1-steps2; i++ {
 			curr1 = step(curr1, bytesLen, mask)

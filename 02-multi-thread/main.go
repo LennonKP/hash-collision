@@ -33,10 +33,10 @@ func main() {
 		return
 	}
 
-	fmt.Printf("Iniciando busca ultra-otimizada (%d workers, %d shards) por colisão para %d bits...\n", workers, numShards, bits)
+	fmt.Printf("iniciando busca por colisao multi-threaded...\n")
 
 	result := findCollisionSharded(bits, workers)
-	hashutils.PrintResults(result, "Ultra-Otimizada via uint64")
+	hashutils.PrintResults(result)
 }
 
 func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
@@ -47,11 +47,11 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 	for i := 0; i < numShards; i++ {
 		shards[i] = &shard{m: make(map[uint64]uint64)}
 	}
-	
+
 	initialMem := hashutils.GetAllocatedMemory()
 	startTime := time.Now()
 	var totalAttempts int64
-	
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -69,7 +69,7 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 					return
 				default:
 					atomic.AddInt64(&totalAttempts, 1)
-					
+
 					rand.Read(seedBuf[:])
 					currentSeed := binary.LittleEndian.Uint64(seedBuf[:])
 
@@ -83,11 +83,11 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 					selectedShard.Lock()
 					if originalSeed, exists := selectedShard.m[miniHash]; exists {
 						if originalSeed != currentSeed {
-							cancel() 
+							cancel()
 
 							var seed1Buf [8]byte
 							binary.LittleEndian.PutUint64(seed1Buf[:], originalSeed)
-							
+
 							resultChan <- hashutils.Result{
 								Bits:          bits,
 								Attempts:      atomic.LoadInt64(&totalAttempts),
