@@ -18,7 +18,7 @@ const numShards = 256
 
 type shard struct {
 	sync.Mutex
-	m map[uint64]uint64 // Chave: Hash, Valor: Semente (Randon Payload)
+	m map[uint64]uint64
 }
 
 func main() {
@@ -39,7 +39,6 @@ func main() {
 	hashutils.PrintResults(result, "Ultra-Otimizada via uint64")
 }
 
-// findCollisionSharded utiliza sementes uint64 para economizar ~70%% de RAM em cada entrada
 func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 	bytesLen := bits / 8
 	mask := hashutils.CreateMask(bits)
@@ -71,17 +70,13 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 				default:
 					atomic.AddInt64(&totalAttempts, 1)
 					
-					// 1. Gerar semente aleatória (8 bytes)
 					rand.Read(seedBuf[:])
 					currentSeed := binary.LittleEndian.Uint64(seedBuf[:])
 
-					// 2. Calcular SHA-256 da semente
 					fullHash := sha256.Sum256(seedBuf[:])
-					
 					hashUint := hashutils.ExtractUint64(fullHash, bytesLen)
 					miniHash := hashutils.ApplyMask(hashUint, mask)
 
-					// 3. Verificar colisão no shard correto
 					shardIdx := int(fullHash[0]) % numShards
 					selectedShard := shards[shardIdx]
 
@@ -90,7 +85,6 @@ func findCollisionSharded(bits int, numWorkers int) hashutils.Result {
 						if originalSeed != currentSeed {
 							cancel() 
 
-							// Prepara as strings originais para exibicao
 							var seed1Buf [8]byte
 							binary.LittleEndian.PutUint64(seed1Buf[:], originalSeed)
 							
